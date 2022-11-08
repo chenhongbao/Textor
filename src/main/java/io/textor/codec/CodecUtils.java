@@ -5,7 +5,7 @@ import io.textor.DecodingState;
 public class CodecUtils {
     static int moveAfter(String expr, int offset, char token) {
         int n = expr.indexOf(token, offset);
-        if (n == -1 || n == expr.length() - 1) {
+        if (n == -1) {
             return -1;
         }
         else {
@@ -29,7 +29,7 @@ public class CodecUtils {
         if (offset < 0) {
             throw new IllegalArgumentException("Illegal offset: " + offset + ".");
         }
-        if (offset > expr.length()) {
+        if (offset >= expr.length()) {
             throw new IllegalArgumentException("Offset overflow.");
         }
     }

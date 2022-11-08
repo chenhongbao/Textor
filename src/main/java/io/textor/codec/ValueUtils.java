@@ -46,18 +46,19 @@ public class ValueUtils {
             if (binary == null || length == 0) {
                 return "";
             }
-            if (binary.length < offset + length) {
-                throw new IllegalArgumentException("Offset and length overflow.");
+            int end = offset + length;
+            if (binary.length < end) {
+                throw new IllegalArgumentException("Offset + length overflow.");
             }
             StringBuilder encoded = new StringBuilder();
             int cur = 0;
-            for (; cur + 3 <= binary.length; cur += 3) {
+            for (; cur + 3 <= end; cur += 3) {
                 encoded.append(encode3Bytes(binary[cur], binary[cur + 1], binary[cur + 2]));
             }
-            if (binary.length - cur == 1) {
+            if (end - cur == 1) {
                 encoded.append(encode3Bytes(binary[cur], (byte)0x00, (byte)0x00));
             }
-            else if (binary.length - cur == 2) {
+            else if (end - cur == 2) {
                 encoded.append(encode3Bytes(binary[cur], binary[cur + 1], (byte)0x00));
             }
             return encoded.toString();
@@ -77,16 +78,17 @@ public class ValueUtils {
             if (totalSize > remainStrSize) {
                 throw new IllegalArgumentException("Insufficient codes to parse binary of the given size.");
             }
-            int end = state.getCursor() + totalSize;
+            if (remainStrSize == 0 || binarySize == 0) {
+                state.setCursor(CodecUtils.moveAfter(expr, state.getCursor(), ','));
+                return null;
+            }
+
+            int end = state.getCursor() + totalSize /* Given that binary size is not zero. */;
             if (end < expr.length()) {
                 char token = expr.charAt(end);
                 if (token != ',') {
                     throw new IllegalArgumentException("Expect ',' at index " + (state.getCursor() + totalSize) + " but find '" + token + "'.");
                 }
-            }
-            if (remainStrSize == 0 || binarySize == 0) {
-                state.setCursor(CodecUtils.moveAfter(expr, state.getCursor(), ','));
-                return null;
             }
 
             byte[] decoded = new byte[totalSize];
@@ -114,9 +116,9 @@ public class ValueUtils {
         private static String encode3Bytes(byte b0, byte b1, byte b2) {
             char[] c = new char[4];
             c[0] = codes[  b0 & 0b00111111];
-            c[1] = codes[((b0 & 0b11000000) >> 6) | ((b1 & 0b00001111) << 2)];
-            c[2] = codes[((b1 & 0b11110000) >> 4) | ((b2 & 0b00000011) << 4)];
-            c[3] = codes[ (b2 & 0b11111100) >> 2];
+            c[1] = codes[((b0 & 0b11000000) >>> 6) | ((b1 & 0b00001111) << 2)];
+            c[2] = codes[((b1 & 0b11110000) >>> 4) | ((b2 & 0b00000011) << 4)];
+            c[3] = codes[ (b2 & 0b11111100) >>> 2];
             return String.copyValueOf(c);
         }
 
@@ -141,12 +143,18 @@ public class ValueUtils {
         }
 
         private static boolean isValidBinaryCode(char c) {
-            return CodecUtils.isNumber(c) || CodecUtils.isLowerLetter(c) || CodecUtils.isUpperLetter(c) || c == '-' || c == '_';
+            return CodecUtils.isNumber(c) || CodecUtils.isLowerLetter(c) || CodecUtils.isUpperLetter(c) || c == '`' || c == '^';
         }
     }
 
     public class Decimal {
         public static String encode(Double decimal, int precision, int fraction) {
+            if (decimal == null) {
+                return "";
+            }
+            if (precision < 0 || fraction < 0) {
+                throw new IllegalArgumentException("Illegal decimal parameters (" + precision + "," + fraction + ").");
+            }
             if (precision < fraction) {
                 throw new IllegalArgumentException("Invalid decimal parameters (" + precision + "," + fraction + ").");
             }
@@ -203,29 +211,41 @@ public class ValueUtils {
 
     public class Integer {
         public static String encode(Long integer) {
+            if (integer == null) {
+                return "";
+            }
             return Long.toString(integer);
         }
 
         public static Long decode(String expr, DecodingState state) {
             CodecUtils.validateOffset(expr, state.getCursor());
-            return Long.parseLong(CodecUtils.consumeSkip(expr,',', state, CodecUtils::isNumber));
+            return Long.parseLong(CodecUtils.consumeSkip(expr,',', state, Integer::isValidNumber));
+        }
+
+        private static boolean isValidNumber(char c) {
+            return CodecUtils.isNumber(c) || c == '-' || c == '+';
         }
     }
 
     public class ASCII {
         public static String encode(String ascii) {
             StringBuilder encoded = new StringBuilder();
-            int cur = 0;
-            for (; cur < ascii.length(); ++cur) {
-                char c = ascii.charAt(cur);
-                if (c == '"') {
-                    encoded.append("\\\"");
-                }
-                else if (c == '\\') {
-                    encoded.append("\\\\");
-                }
-                else {
-                    encoded.append(c);
+            if (ascii != null && ascii.length() > 0) {
+                int cur = 0;
+                for (; cur < ascii.length(); ++cur) {
+                    char c = ascii.charAt(cur);
+                    if (!isValidAscii(c)) {
+                        throw new IllegalArgumentException("Non-ASCII character '" + c + "' is no allowed.");
+                    }
+                    if (c == '"') {
+                        encoded.append("\\\"");
+                    }
+                    else if (c == '\\') {
+                        encoded.append("\\\\");
+                    }
+                    else {
+                        encoded.append(c);
+                    }
                 }
             }
             return "\"" + encoded.toString() + "\"";
@@ -284,6 +304,10 @@ public class ValueUtils {
             state.setCursor(CodecUtils.moveAfter(expr, cur, ','));
             return decoded.toString();
         }
+    }
+
+    private static boolean isValidAscii(char c) {
+        return c <= 127;
     }
 
     public class Timestamp {
