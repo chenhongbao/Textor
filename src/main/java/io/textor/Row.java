@@ -3,32 +3,45 @@ package io.textor;
 import java.util.HashMap;
 import java.util.Map;
 
-public class Inserta {
-    private final Map<String, Cell> columns = new HashMap<>();
-    private final Map<String, Cell> attributes = new HashMap<>();
+public class Row {
+    private final static Cell[] zeros = new Cell[0];
+    private final Map<String, Cell> cols = new HashMap<>();
+    private final Map<String, Cell> attrs = new HashMap<>();
     private final int index;
 
-    public Inserta(int index) {
-        this.index = index;
+    public Row(Cell[] columns, Cell[] attributes) {
+        if (columns.length == 0) {
+            throw new IllegalArgumentException("Cannot construct row from no cell.");
+        }
+        index = columns[0].getIndex();
+        for (Cell c : columns) {
+            if (c.getIndex() != index) {
+                throw new IllegalArgumentException("Unmatched index between row and cells.");
+            }
+            cols.put(c.getColumnDescriptor().getKeyDescriptor().getName(), c);
+        }
+        for (Cell a : attributes) {
+            attrs.put(a.getColumnDescriptor().getKeyDescriptor().getName(), a);
+        }
     }
 
     public int getIndex() {
         return index;
     }
 
-    public Cell setColumn(Cell cell) {
-        return columns.put(cell.getColumnDescriptor().getName(), cell);
-    }
-
     public Cell getColumn(String columnName) {
-        return columns.get(columnName);
+        return cols.get(columnName);
     }
 
-    public Cell setAttribute(Cell attribute) {
-        return attributes.put(attribute.getColumnDescriptor().getName(), attribute);
+    public Cell[] getColumns() {
+        return cols.values().toArray(zeros);
     }
 
     public Cell getAttribute(String attributeName) {
-        return columns.get(attributeName);
+        return attrs.get(attributeName);
+    }
+
+    public Cell[] getAttributes() {
+        return attrs.values().toArray(zeros);
     }
 }

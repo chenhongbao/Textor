@@ -1,4 +1,4 @@
-package io.textor.utils;
+package io.textor.codec;
 
 import io.textor.DecodingState;
 
@@ -65,36 +65,33 @@ public class ValueUtils {
 
         public static byte[] decode(String expr, int binarySize, DecodingState state) {
             // 4 letters to 3 bytes.
-            int begin = state.getCursor();
-            if (begin < 0) {
-                throw new IllegalArgumentException("Illegal offset: " + begin + ".");
-            }
+            CodecUtils.validateOffset(expr, state.getCursor());
             if (binarySize < 0) {
                 throw new IllegalArgumentException("Illegal binary size: " + binarySize +".");
             }
-            int remainStrSize = expr.length() - begin;
+            int remainStrSize = expr.length() - state.getCursor();
             if (remainStrSize < 0) {
-                throw new IllegalArgumentException("Illegal offset: " + begin + ".");
+                throw new IllegalArgumentException("Illegal offset: " + state.getCursor() + ".");
             }
             int totalSize = (binarySize / 3 + (binarySize % 3 != 0 ? 1 : 0)) * 4;
             if (totalSize > remainStrSize) {
                 throw new IllegalArgumentException("Insufficient codes to parse binary of the given size.");
             }
-            int end = begin + totalSize;
+            int end = state.getCursor() + totalSize;
             if (end < expr.length()) {
                 char token = expr.charAt(end);
                 if (token != ',') {
-                    throw new IllegalArgumentException("Expect ',' at index " + (begin + totalSize) + " but find '" + token + "'.");
+                    throw new IllegalArgumentException("Expect ',' at index " + (state.getCursor() + totalSize) + " but find '" + token + "'.");
                 }
             }
             if (remainStrSize == 0 || binarySize == 0) {
-                state.setCursor(DecodeUtils.moveAfter(expr, begin, ','));
+                state.setCursor(CodecUtils.moveAfter(expr, state.getCursor(), ','));
                 return null;
             }
 
             byte[] decoded = new byte[totalSize];
             int decodeCur = 0;
-            int cur = begin;
+            int cur = state.getCursor();
             for (; cur + 4 <= end; cur += 4, decodeCur += 3) {
                 byte[] decodeBytes;
                 char[] chars = new char[] {expr.charAt(cur), expr.charAt(cur + 1), expr.charAt(cur + 2), expr.charAt(cur + 3)};
@@ -110,7 +107,7 @@ public class ValueUtils {
                 decoded[decodeCur + 2] = decodeBytes[2];
             }
 
-            state.setCursor(DecodeUtils.moveAfter(expr, cur, ','));
+            state.setCursor(CodecUtils.moveAfter(expr, cur, ','));
             return Arrays.copyOf(decoded, binarySize);
         }
 
@@ -144,7 +141,7 @@ public class ValueUtils {
         }
 
         private static boolean isValidBinaryCode(char c) {
-            return DecodeUtils.isNumber(c) || DecodeUtils.isLowerLetter(c) || DecodeUtils.isUpperLetter(c) || c == '-' || c == '_';
+            return CodecUtils.isNumber(c) || CodecUtils.isLowerLetter(c) || CodecUtils.isUpperLetter(c) || c == '-' || c == '_';
         }
     }
 
@@ -157,10 +154,7 @@ public class ValueUtils {
         }
 
         public static Double decode(String expr, int precision, int fraction, DecodingState state) {
-            int begin = state.getCursor();
-            if (begin < 0) {
-                throw new IllegalArgumentException("Illegal offset: " + begin + ".");
-            }
+            CodecUtils.validateOffset(expr, state.getCursor());
             if (precision < 0 || fraction < 0) {
                 throw new IllegalArgumentException("Illegal decimal parameters: " + precision + ", " + fraction + ".");
             }
@@ -170,6 +164,7 @@ public class ValueUtils {
 
             int intEnd = -1;
             int fracEnd = -1;
+            int begin = state.getCursor();
             int cur = begin;
             for (; cur < expr.length(); ++cur) {
                 char c = expr.charAt(cur);
@@ -178,7 +173,7 @@ public class ValueUtils {
                     if (c == '.') {
                         intEnd = cur;
                     }
-                    else if (!DecodeUtils.isNumber(c)) {
+                    else if (!CodecUtils.isNumber(c)) {
                         throw new IllegalArgumentException("Illegal character '" + c + "' at index " + cur + ".");
                     }
                 }
@@ -187,7 +182,7 @@ public class ValueUtils {
                         fracEnd = cur;
                         break;
                     }
-                    else if (!DecodeUtils.isNumber(c)) {
+                    else if (!CodecUtils.isNumber(c)) {
                         throw new IllegalArgumentException("Illegal character '" + c + "' at index " + cur + ".");
                     }
                 }
@@ -201,7 +196,7 @@ public class ValueUtils {
                 throw new IllegalArgumentException("Fraction overflow.");
             }
 
-            state.setCursor(DecodeUtils.moveAfter(expr, cur, ','));
+            state.setCursor(CodecUtils.moveAfter(expr, cur, ','));
             return Double.parseDouble(expr.substring(begin, intEnd) + "." + expr.substring(intEnd + 1, fracEnd));
         }
     }
@@ -212,7 +207,8 @@ public class ValueUtils {
         }
 
         public static Long decode(String expr, DecodingState state) {
-            return Long.parseLong(DecodeUtils.consumeSkip(expr,',', state, DecodeUtils::isNumber));
+            CodecUtils.validateOffset(expr, state.getCursor());
+            return Long.parseLong(CodecUtils.consumeSkip(expr,',', state, CodecUtils::isNumber));
         }
     }
 
@@ -237,14 +233,11 @@ public class ValueUtils {
 
 
         public static String decode(String expr, DecodingState state) {
-            int begin = state.getCursor();
-            if (begin < 0) {
-                throw new IllegalArgumentException("Illegal offset: " + begin + ".");
-            }
+            CodecUtils.validateOffset(expr, state.getCursor());
             StringBuilder decoded = new StringBuilder();
             boolean isBegun = false;
             boolean isFinished = false;
-            int cur = begin;
+            int cur = state.getCursor();
             for (; cur < expr.length(); ++cur) {
                 char c = expr.charAt(cur);
                 if (!isBegun) {
@@ -288,7 +281,7 @@ public class ValueUtils {
                 }
             }
 
-            state.setCursor(DecodeUtils.moveAfter(expr, cur, ','));
+            state.setCursor(CodecUtils.moveAfter(expr, cur, ','));
             return decoded.toString();
         }
     }
@@ -299,11 +292,12 @@ public class ValueUtils {
         }
 
         public static ZonedDateTime decode(String expr, DecodingState state) {
-            return ZonedDateTime.parse(DecodeUtils.consumeSkip(expr, ',', state, Timestamp::isValidTimestampCharacter), DateTimeFormatter.ISO_ZONED_DATE_TIME);
+            CodecUtils.validateOffset(expr, state.getCursor());
+            return ZonedDateTime.parse(CodecUtils.consumeSkip(expr, ',', state, Timestamp::isValidTimestampCharacter), DateTimeFormatter.ISO_ZONED_DATE_TIME);
         }
 
         private static boolean isValidTimestampCharacter(char c) {
-            return DecodeUtils.isNumber(c) || DecodeUtils.isUpperLetter(c) || DecodeUtils.isLowerLetter(c) || c == '-' || c == ':' || c == '+' || c == '[' || c == ']' || c == '/';
+            return CodecUtils.isNumber(c) || CodecUtils.isUpperLetter(c) || CodecUtils.isLowerLetter(c) || c == '-' || c == ':' || c == '+' || c == '[' || c == ']' || c == '/';
         }
     }
 }

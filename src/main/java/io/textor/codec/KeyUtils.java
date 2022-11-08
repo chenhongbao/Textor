@@ -1,26 +1,38 @@
-package io.textor.utils;
+package io.textor.codec;
 
-import io.textor.ColumnDescriptor;
-import io.textor.DecodingState;
-import io.textor.ValueDescriptor;
-import io.textor.ValueType;
+import io.textor.*;
 
 public class KeyUtils {
+
+    public static String encodeKey(ColumnDescriptor columnDescriptor) {
+        KeyDescriptor key = columnDescriptor.getKeyDescriptor();
+        ValueDescriptor value = columnDescriptor.getValueDescriptor();
+        return key.getType().getToken()  + key.getName() + "(" + encodeType(value) + ")";
+    }
+
+    private static String encodeType(ValueDescriptor descriptor) {
+        return switch (descriptor.getType()) {
+            case ASCII, INTEGER, TIMESTAMP -> descriptor.getType().getToken();
+            case BINARY -> descriptor.getType().getToken() + ":" + descriptor.getBinarySize();
+            case DECIMAL -> descriptor.getType().getToken() + ":" + descriptor.getDecimalPrecision() + "," + descriptor.getDecimalFraction();
+        };
+    }
+
     public static ColumnDescriptor decodeKey(String expr, DecodingState state) {
-        String name = decodeColumnName(expr, state);
-        ValueDescriptor descriptor = decodeValueDescriptor(expr, state);
-        return new ColumnDescriptor(name, descriptor);
+        KeyDescriptor key = decodeKeyDescriptor(expr, state);
+        ValueDescriptor value = decodeValueDescriptor(expr, state);
+        return new ColumnDescriptor(key, value);
     }
 
     private static ValueDescriptor decodeValueDescriptor(String expr, DecodingState state) {
         ValueType type = decodeType(expr, state);
         int binarySize = 0, precision = 0, fraction = 0;
         switch (type) {
-            case ASCII, INTEGER, TIMESTAMP -> state.setCursor(DecodeUtils.moveAfter(expr, state.getCursor(), ')'));
+            case ASCII, INTEGER, TIMESTAMP -> state.setCursor(CodecUtils.moveAfter(expr, state.getCursor(), ')'));
             case BINARY ->
-                    binarySize = Integer.parseInt(DecodeUtils.consumeSkip(expr, ')', state, DecodeUtils::isNumber));
+                    binarySize = Integer.parseInt(CodecUtils.consumeSkip(expr, ')', state, CodecUtils::isNumber));
             case DECIMAL -> {
-                String params = DecodeUtils.consumeSkip(expr, ')', state, c -> DecodeUtils.isNumber(c) || c == ',');
+                String params = CodecUtils.consumeSkip(expr, ')', state, c -> CodecUtils.isNumber(c) || c == ',');
                 String[] splits = params.split(",");
                 if (splits.length == 0 || splits.length > 2) {
                     throw new IllegalArgumentException("Illegal type parameters '" + params + "'.");
@@ -34,18 +46,27 @@ public class KeyUtils {
         return new ValueDescriptor(type, precision, fraction, binarySize);
     }
 
+    private static KeyDescriptor decodeKeyDescriptor(String expr, DecodingState state) {
+        CodecUtils.validateOffset(expr, state.getCursor());
+        KeyType type;
+        int first = state.getCursor();
+        if (expr.charAt(first) == '@') {
+            type = KeyType.ATTRIBUTE;
+            state.setCursor(first + 1);
+        }
+        else {
+            type = KeyType.COLUMN;
+        }
+        return new KeyDescriptor(decodeColumnName(expr, state), type);
+    }
+
     private static String decodeColumnName(String expr, DecodingState state) {
-        return DecodeUtils.consumeSkip(expr, '(', state, KeyUtils::isValidKeyCharacter);
+        return CodecUtils.consumeSkip(expr, '(', state, KeyUtils::isValidKeyCharacter);
     }
 
     private static ValueType decodeType(String expr, DecodingState state) {
+        CodecUtils.validateOffset(expr, state.getCursor());
         int begin = state.getCursor();
-        if (begin < 0) {
-            throw new IllegalArgumentException("Illegal offset: " + begin + ".");
-        }
-        if (begin >= expr.length()) {
-            throw new IllegalArgumentException("Offset overflow.");
-        }
         if (begin == expr.length() - 1) {
             throw new IllegalArgumentException("Incomplete type.");
         }
@@ -56,7 +77,7 @@ public class KeyUtils {
                 if (n != ')') {
                     throw new IllegalArgumentException("Unexpected character '" + n + "' after type name.");
                 }
-                state.setCursor(DecodeUtils.moveAfter(expr, begin, ')'));
+                state.setCursor(CodecUtils.moveAfter(expr, begin, ')'));
                 return switch (c) {
                     case 'A' -> ValueType.ASCII;
                     case 'L' -> ValueType.INTEGER;
@@ -68,7 +89,7 @@ public class KeyUtils {
                 if (n != ':') {
                     throw new IllegalArgumentException("Unexpected character '" + n + "' after type name.");
                 }
-                state.setCursor(DecodeUtils.moveAfter(expr, begin, ':'));
+                state.setCursor(CodecUtils.moveAfter(expr, begin, ':'));
                 return switch (c) {
                     case 'B' -> ValueType.BINARY;
                     case 'D' -> ValueType.DECIMAL;
@@ -80,6 +101,6 @@ public class KeyUtils {
     }
 
     private static boolean isValidKeyCharacter(char c) {
-        return DecodeUtils.isUpperLetter(c) || DecodeUtils.isLowerLetter(c) || DecodeUtils.isNumber(c) || c == '_';
+        return CodecUtils.isUpperLetter(c) || CodecUtils.isLowerLetter(c) || CodecUtils.isNumber(c) || c == '_';
     }
 }

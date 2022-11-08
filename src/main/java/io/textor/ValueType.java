@@ -1,5 +1,18 @@
-package io.textor.utils;
+package io.textor;
 
 public enum ValueType {
-    INTEGER, DECIMAL, ASCII, BINARY
+    INTEGER("L"),
+    DECIMAL("D"),
+    ASCII("A"),
+    BINARY("B"),
+    TIMESTAMP("T");
+
+    private final String token;
+    ValueType(String token) {
+        this.token = token;
+    }
+
+    public String getToken() {
+        return token;
+    }
 }

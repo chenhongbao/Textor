@@ -1,4 +1,4 @@
-package io.textor.utils;
+package io.textor.codec;
 
 @FunctionalInterface
 public interface CharacterChecker {

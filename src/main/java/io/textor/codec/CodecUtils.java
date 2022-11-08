@@ -2,7 +2,7 @@ package io.textor.codec;
 
 import io.textor.DecodingState;
 
-public class DecodeUtils {
+public class CodecUtils {
     static int moveAfter(String expr, int offset, char token) {
         int n = expr.indexOf(token, offset);
         if (n == -1 || n == expr.length() - 1) {
@@ -13,11 +13,30 @@ public class DecodeUtils {
         }
     }
 
-    static String consumeSkip(String expr, char token, DecodingState state, CharacterChecker checker) {
-        int begin = state.getCursor();
-        if (begin < 0) {
-            throw new IllegalArgumentException("Illegal offset: " + begin + ".");
+    static int moveAfter(String expr, int offset, CharacterChecker skipped) {
+        validateOffset(expr, offset);
+        int cursor = offset;
+        for (; cursor < expr.length(); ++cursor) {
+            char c = expr.charAt(cursor);
+            if (!skipped.check(c)) {
+                break;
+            }
         }
+        return cursor;
+    }
+
+    static void validateOffset(String expr, int offset) {
+        if (offset < 0) {
+            throw new IllegalArgumentException("Illegal offset: " + offset + ".");
+        }
+        if (offset > expr.length()) {
+            throw new IllegalArgumentException("Offset overflow.");
+        }
+    }
+
+    static String consumeSkip(String expr, char token, DecodingState state, CharacterChecker checker) {
+        validateOffset(expr, state.getCursor());
+        int begin = state.getCursor();
         int cur = begin;
         for (; cur < expr.length(); ++cur) {
             char c = expr.charAt(cur);
@@ -28,7 +47,7 @@ public class DecodeUtils {
                 throw new IllegalArgumentException("Illegal character '" + c + "'.");
             }
         }
-        state.setCursor(DecodeUtils.moveAfter(expr, cur, token));
+        state.setCursor(CodecUtils.moveAfter(expr, cur, token));
         return expr.substring(begin, cur);
     }
 

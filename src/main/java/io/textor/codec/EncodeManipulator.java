@@ -1,2 +1,6 @@
-package io.textor.codec;public interface EncodeManipulator {
+package io.textor.codec;
+
+@FunctionalInterface
+public interface EncodeManipulator {
+    String manipulate(String encode);
 }
