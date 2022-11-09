@@ -1,7 +1,6 @@
 package io.textor;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class Row {
     private final static Cell[] zeros = new Cell[0];
@@ -34,7 +33,7 @@ public class Row {
     }
 
     public Cell[] getColumns() {
-        return cols.values().toArray(zeros);
+        return getSortedCells(cols.values());
     }
 
     public Cell getAttribute(String attributeName) {
@@ -42,6 +41,12 @@ public class Row {
     }
 
     public Cell[] getAttributes() {
-        return attrs.values().toArray(zeros);
+        return getSortedCells(attrs.values());
+    }
+
+    private Cell[] getSortedCells(Collection<Cell> cells) {
+        List<Cell> sorted = new LinkedList<>(cells);
+        sorted.sort(Comparator.comparing(cell -> cell.getColumnDescriptor().getKeyDescriptor().getName()));
+        return sorted.toArray(zeros);
     }
 }
