@@ -43,7 +43,7 @@ public class Codec {
         ValueDescriptor value = cell.getColumnDescriptor().getValueDescriptor();
         return switch (value.getType()) {
             case INTEGER -> ValueUtils.Integer.encode(cell.getInteger());
-            case DECIMAL -> ValueUtils.Decimal.encode(cell.getDecimal(), value.getDecimalPrecision(), value.getDecimalFraction());
+            case DECIMAL -> ValueUtils.Decimal.encode(cell.getDecimal(), value.getDecimalWidth(), value.getDecimalPrecision());
             case ASCII -> ValueUtils.ASCII.encode(cell.getAsciiString());
             case BINARY -> ValueUtils.Binary.encode(cell.getBinary(), 0, value.getBinarySize());
             case TIMESTAMP -> ValueUtils.Timestamp.encode(cell.getTimestamp());
@@ -71,7 +71,7 @@ public class Codec {
         return switch (columnDesc.getValueDescriptor().getType()) {
             case ASCII -> new Cell(index, columnDesc, ValueUtils.ASCII.decode(expr, state));
             case BINARY -> new Cell(index, columnDesc, ValueUtils.Binary.decode(expr, columnDesc.getValueDescriptor().getBinarySize(), state));
-            case DECIMAL -> new Cell(index, columnDesc, ValueUtils.Decimal.decode(expr, columnDesc.getValueDescriptor().getDecimalPrecision(), columnDesc.getValueDescriptor().getDecimalFraction(), state));
+            case DECIMAL -> new Cell(index, columnDesc, ValueUtils.Decimal.decode(expr, columnDesc.getValueDescriptor().getDecimalWidth(), columnDesc.getValueDescriptor().getDecimalPrecision(), state));
             case INTEGER -> new Cell(index, columnDesc, ValueUtils.Integer.decode(expr, state));
             case TIMESTAMP -> new Cell(index, columnDesc, ValueUtils.Timestamp.decode(expr, state));
         };

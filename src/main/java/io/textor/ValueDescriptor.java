@@ -2,14 +2,14 @@ package io.textor;
 
 public class ValueDescriptor {
     private final ValueType type;
+    private final Integer width;
     private final Integer precision;
-    private final Integer fraction;
     private final Integer size;
 
-    public ValueDescriptor(ValueType valueType, Integer decimalPrecision, Integer decimalFraction, Integer binarySize) {
+    public ValueDescriptor(ValueType valueType, Integer decimalWidth, Integer decimalPrecision, Integer binarySize) {
         type = valueType;
+        width = decimalWidth;
         precision = decimalPrecision;
-        fraction = decimalFraction;
         size = binarySize;
     }
 
@@ -17,12 +17,12 @@ public class ValueDescriptor {
         return type;
     }
 
-    public int getDecimalPrecision() {
-        return precision;
+    public int getDecimalWidth() {
+        return width;
     }
 
-    public int getDecimalFraction() {
-        return fraction;
+    public int getDecimalPrecision() {
+        return precision;
     }
 
     public int getBinarySize() {

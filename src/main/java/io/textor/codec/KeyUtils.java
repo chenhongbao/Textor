@@ -14,7 +14,7 @@ public class KeyUtils {
         return switch (descriptor.getType()) {
             case ASCII, INTEGER, TIMESTAMP -> descriptor.getType().getToken();
             case BINARY -> descriptor.getType().getToken() + ":" + descriptor.getBinarySize();
-            case DECIMAL -> descriptor.getType().getToken() + ":" + descriptor.getDecimalPrecision() + "," + descriptor.getDecimalFraction();
+            case DECIMAL -> descriptor.getType().getToken() + ":" + descriptor.getDecimalWidth() + "," + descriptor.getDecimalPrecision();
         };
     }
 

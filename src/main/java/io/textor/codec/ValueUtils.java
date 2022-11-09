@@ -37,7 +37,7 @@ public class ValueUtils {
             0x3B, 0x3C, 0x3D,
     };
 
-    public class Binary {
+    public static class Binary {
         public static String encode(byte[] binary, int offset, int length)  {
             // 3 bytes to 4 letters.
             if (offset < 0 || length < 0) {
@@ -147,69 +147,85 @@ public class ValueUtils {
         }
     }
 
-    public class Decimal {
-        public static String encode(Double decimal, int precision, int fraction) {
+    public static class Decimal {
+        public static String encode(Double decimal, int width, int precision) {
             if (decimal == null) {
                 return "";
             }
-            if (precision < 0 || fraction < 0) {
-                throw new IllegalArgumentException("Illegal decimal parameters (" + precision + "," + fraction + ").");
+            if (width < 0 || precision < 0) {
+                throw new IllegalArgumentException("Illegal decimal parameters (" + width + "," + precision + ").");
             }
-            if (precision < fraction) {
-                throw new IllegalArgumentException("Invalid decimal parameters (" + precision + "," + fraction + ").");
+            if (width < precision) {
+                throw new IllegalArgumentException("Invalid decimal parameters (" + width + "," + precision + ").");
             }
-            return String.format("%" + (precision - fraction) + "." + fraction + "f", decimal);
+
+            return trimWidth(String.format("%" + width + "." + precision + "f", decimal), width, precision);
         }
 
-        public static Double decode(String expr, int precision, int fraction, DecodingState state) {
-            CodecUtils.validateOffset(expr, state.getCursor());
-            if (precision < 0 || fraction < 0) {
-                throw new IllegalArgumentException("Illegal decimal parameters: " + precision + ", " + fraction + ".");
+        private static String trimWidth(String encoded, int width, int precision) {
+            encoded = encoded.trim() /* Remove pre-padding blanks. */;
+            int dot = encoded.indexOf('.');
+            if (dot != -1 && dot > width - precision) {
+                return encoded.substring(dot - width + precision);
             }
-            if (precision < fraction) {
-                throw new IllegalArgumentException("Invalid decimal parameters (" + precision + "," + fraction + ").");
+            else {
+                return encoded;
+            }
+        }
+
+        public static Double decode(String expr, int width, int precision, DecodingState state) {
+            CodecUtils.validateOffset(expr, state.getCursor());
+            if (width < 0 || precision < 0) {
+                throw new IllegalArgumentException("Illegal decimal parameters: " + width + ", " + precision + ".");
+            }
+            if (width < precision) {
+                throw new IllegalArgumentException("Invalid decimal parameters (" + width + "," + precision + ").");
             }
 
             int intEnd = -1;
-            int fracEnd = -1;
+            int fractionEnd = -1;
             int begin = state.getCursor();
             int cur = begin;
             for (; cur < expr.length(); ++cur) {
                 char c = expr.charAt(cur);
-                if (intEnd == -1)
-                {
+                if (intEnd == -1) {
                     if (c == '.') {
                         intEnd = cur;
-                    }
-                    else if (!CodecUtils.isNumber(c)) {
+                    } else if (!CodecUtils.isNumber(c)) {
                         throw new IllegalArgumentException("Illegal character '" + c + "' at index " + cur + ".");
                     }
-                }
-                else {
+                } else {
                     if (c == ',') {
-                        fracEnd = cur;
+                        fractionEnd = cur;
                         break;
-                    }
-                    else if (!CodecUtils.isNumber(c)) {
+                    } else if (!CodecUtils.isNumber(c)) {
                         throw new IllegalArgumentException("Illegal character '" + c + "' at index " + cur + ".");
                     }
                 }
 
             }
 
-            if (fracEnd - begin - 1 > precision) {
-                throw new IllegalArgumentException("Precision overflow.");
+            if (cur == expr.length()) {
+                fractionEnd = cur;
             }
-            if (fracEnd - intEnd - 1 > fraction) {
+
+            if (intEnd > width - precision) {
+                throw new IllegalArgumentException("Integer overflow.");
+            }
+            if (fractionEnd - intEnd - 1 > precision) {
                 throw new IllegalArgumentException("Fraction overflow.");
             }
 
             state.setCursor(CodecUtils.moveAfter(expr, cur, ','));
-            return Double.parseDouble(expr.substring(begin, intEnd) + "." + expr.substring(intEnd + 1, fracEnd));
+            try {
+                return Double.parseDouble(expr.substring(begin, intEnd) + "." + expr.substring(intEnd + 1, fractionEnd));
+            }catch (Exception exception) {
+                throw new IllegalArgumentException(exception.getMessage(), exception);
+            }
         }
     }
 
-    public class Integer {
+    public static class Integer {
         public static String encode(Long integer) {
             if (integer == null) {
                 return "";
@@ -219,7 +235,11 @@ public class ValueUtils {
 
         public static Long decode(String expr, DecodingState state) {
             CodecUtils.validateOffset(expr, state.getCursor());
-            return Long.parseLong(CodecUtils.consumeSkip(expr,',', state, Integer::isValidNumber));
+            try {
+                return Long.parseLong(CodecUtils.consumeSkip(expr, ',', state, Integer::isValidNumber));
+            } catch (Exception exception) {
+                throw new IllegalArgumentException(exception.getMessage(), exception);
+            }
         }
 
         private static boolean isValidNumber(char c) {
@@ -227,7 +247,7 @@ public class ValueUtils {
         }
     }
 
-    public class ASCII {
+    public static class ASCII {
         public static String encode(String ascii) {
             StringBuilder encoded = new StringBuilder();
             if (ascii != null && ascii.length() > 0) {
@@ -248,7 +268,7 @@ public class ValueUtils {
                     }
                 }
             }
-            return "\"" + encoded.toString() + "\"";
+            return "\"" + encoded + "\"";
         }
 
 
@@ -310,18 +330,25 @@ public class ValueUtils {
         return c <= 127;
     }
 
-    public class Timestamp {
+    public static class Timestamp {
         public static String encode(ZonedDateTime timestamp) {
+            if (timestamp == null) {
+                return "";
+            }
             return timestamp.format(DateTimeFormatter.ISO_ZONED_DATE_TIME);
         }
 
         public static ZonedDateTime decode(String expr, DecodingState state) {
             CodecUtils.validateOffset(expr, state.getCursor());
-            return ZonedDateTime.parse(CodecUtils.consumeSkip(expr, ',', state, Timestamp::isValidTimestampCharacter), DateTimeFormatter.ISO_ZONED_DATE_TIME);
+            try {
+                return ZonedDateTime.parse(CodecUtils.consumeSkip(expr, ',', state, Timestamp::isValidTimestampCharacter), DateTimeFormatter.ISO_ZONED_DATE_TIME);
+            }catch (Exception exception) {
+                throw new IllegalArgumentException(exception.getMessage(), exception);
+            }
         }
 
         private static boolean isValidTimestampCharacter(char c) {
-            return CodecUtils.isNumber(c) || CodecUtils.isUpperLetter(c) || CodecUtils.isLowerLetter(c) || c == '-' || c == ':' || c == '+' || c == '[' || c == ']' || c == '/';
+            return CodecUtils.isNumber(c) || CodecUtils.isUpperLetter(c) || CodecUtils.isLowerLetter(c) || c == '-' || c == ':' || c == '+' || c == '[' || c == ']' || c == '/' || c == '.';
         }
     }
 }

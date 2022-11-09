@@ -3,6 +3,8 @@ package io.textor.codec;
 import io.textor.DecodingState;
 import org.junit.jupiter.api.*;
 
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -112,7 +114,7 @@ class ValueUtilsTest {
     }
 
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    public static class ASCII {
+    public static class ASCIITest {
         private final DecodingState state = new DecodingState(0);
 
         @BeforeEach
@@ -167,7 +169,7 @@ class ValueUtilsTest {
     }
 
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    public static class Integer {
+    public static class IntegerTest {
         private final DecodingState state = new DecodingState(0);
 
         @BeforeEach
@@ -222,11 +224,11 @@ class ValueUtilsTest {
         @Test
         @DisplayName("Decode overflow integer.")
         public void decodeOverflow() {
-            assertThrowsExactly(NumberFormatException.class, () -> ValueUtils.Integer.decode("123456789012345678901234567890", state));
+            assertThrowsExactly(IllegalArgumentException.class, () -> ValueUtils.Integer.decode("123456789012345678901234567890", state));
         }
     }
 
-    public static class Decimal {
+    public static class DecimalTest {
         private final DecodingState state = new DecodingState(0);
 
         @BeforeEach
@@ -253,8 +255,77 @@ class ValueUtilsTest {
         @DisplayName("Encode with different params.")
         public void encodeDifferentParams() {
             assertEquals("1.1", ValueUtils.Decimal.encode(1.123D, 2, 1));
+            assertEquals("1", ValueUtils.Decimal.encode(1.123D, 2, 0));
+            assertEquals(".12", ValueUtils.Decimal.encode(1.123D, 2, 2));
+            assertEquals(".12300", ValueUtils.Decimal.encode(1.123D, 5, 5));
         }
 
-        //TODO Keep on unit tests.
+        @Test
+        @DisplayName("Decode large width/precision decimal.")
+        public void decodeLargeWidthPrecision() {
+            // No need to reset cursor because no real decoding happens.
+            assertThrowsExactly(IllegalArgumentException.class, () -> ValueUtils.Decimal.decode("12345.12345", 5, 2, state));
+            assertThrowsExactly(IllegalArgumentException.class, () -> ValueUtils.Decimal.decode("12345.12345", 5, 5, state));
+            assertThrowsExactly(IllegalArgumentException.class, () -> ValueUtils.Decimal.decode("12345.12345", 5, 0, state));
+            assertThrowsExactly(IllegalArgumentException.class, () -> ValueUtils.Decimal.decode("12345.12345", 10, 0, state));
+            assertThrowsExactly(IllegalArgumentException.class, () -> ValueUtils.Decimal.decode("12345.12345", 10, 10, state));
+        }
+
+        @Test
+        @DisplayName("Decode with comma ending.")
+        public void decodeCommaEnding() {
+            assertEquals(12345.12345D, ValueUtils.Decimal.decode("12345.12345,", 10, 5, state));
+        }
+
+        @Test
+        @DisplayName("Decode with different params.")
+        public void decodeDifferentParams() {
+            assertEquals(12345.12345D, ValueUtils.Decimal.decode("12345.12345", 10, 5, state));
+            state.setCursor(0);
+            assertEquals(12345.12345D, ValueUtils.Decimal.decode("12345.12345", 15, 5, state));
+            state.setCursor(0);
+            assertEquals(12345.12345D, ValueUtils.Decimal.decode("12345.12345", 15, 10, state));
+        }
+    }
+
+    public static class TimestampTest {
+        private final DecodingState state = new DecodingState(0);
+        private final String nowStr = "2022-11-09T08:19:36.5009645+08:00[Asia/Shanghai]";
+        private final ZonedDateTime now = ZonedDateTime.parse(nowStr, DateTimeFormatter.ISO_ZONED_DATE_TIME);
+
+        @BeforeEach
+        public void before() {
+            state.setCursor(0);
+        }
+
+        @Test
+        @DisplayName("Encode null.")
+        public void encodeNull() {
+            assertEquals("", ValueUtils.Timestamp.encode(null));
+        }
+
+        @Test
+        @DisplayName("Encode timestamp.")
+        public void encodeTimestamp() {
+            assertEquals(nowStr, ValueUtils.Timestamp.encode(now));
+        }
+
+        @Test
+        @DisplayName("Decode timestamp.")
+        public void decodeTimestamp() {
+            assertEquals(now, ValueUtils.Timestamp.decode(nowStr, state));
+        }
+
+        @Test
+        @DisplayName("Decoding with comma ending.")
+        public void decodeCommaEnding() {
+            assertEquals(now, ValueUtils.Timestamp.decode(nowStr + ",", state));
+        }
+
+        @Test
+        @DisplayName("Decode invalid timestamp.")
+        public void decodeInvalid() {
+            assertThrowsExactly(IllegalArgumentException.class, () -> ValueUtils.Timestamp.decode(nowStr.replace('[', ']'), state));
+        }
     }
 }
