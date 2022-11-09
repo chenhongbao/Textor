@@ -9,7 +9,7 @@ public class Row {
     private final int index;
 
     public Row(Cell[] columns, Cell[] attributes) {
-        if (columns.length == 0) {
+        if (columns == null || columns.length == 0) {
             throw new IllegalArgumentException("Cannot construct row from no cell.");
         }
         index = columns[0].getIndex();
@@ -19,8 +19,10 @@ public class Row {
             }
             cols.put(c.getColumnDescriptor().getKeyDescriptor().getName(), c);
         }
-        for (Cell a : attributes) {
-            attrs.put(a.getColumnDescriptor().getKeyDescriptor().getName(), a);
+        if (attributes != null) {
+            for (Cell a : attributes) {
+                attrs.put(a.getColumnDescriptor().getKeyDescriptor().getName(), a);
+            }
         }
     }
 

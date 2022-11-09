@@ -10,8 +10,11 @@ public class Codec {
 
     public static String encode(Row row) {
         // @TABLE(A)"system_admin",@_user_defined(D:3,1)10.9,_last_visit(T)2019-09-15T08:58:18.788860-04:00,_age(L)35
+        if (row == null) {
+            return "";
+        }
         StringBuilder encoded = new StringBuilder();
-        encoded.append(encodeCells(row.getAttributes(), encode -> "@" + encode));
+        encoded.append(encodeCells(row.getAttributes(), encode -> !encode.startsWith("@") ? "@" + encode : encode));
         if (encoded.length() > 0 && row.getColumns().length > 0) {
             encoded.append(',');
         }
@@ -29,7 +32,7 @@ public class Codec {
             int cur = 1;
             for (; cur < cells.length; ++cur) {
                 encoded.append(',');
-                encoded.append(manipulator.manipulate(encodeCell(cells[0])));
+                encoded.append(manipulator.manipulate(encodeCell(cells[cur])));
             }
         }
         return encoded.toString();

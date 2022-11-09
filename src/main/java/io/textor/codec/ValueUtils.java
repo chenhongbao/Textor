@@ -209,7 +209,7 @@ public class ValueUtils {
                 fractionEnd = cur;
             }
 
-            if (intEnd > width - precision) {
+            if (intEnd - begin > width - precision) {
                 throw new IllegalArgumentException("Integer overflow.");
             }
             if (fractionEnd - intEnd - 1 > precision) {

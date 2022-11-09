@@ -10,9 +10,24 @@ public class Cell {
 
     public Cell(int cellIndex, ColumnDescriptor valueDescriptor, Object nullableValue) {
         Objects.requireNonNull(valueDescriptor);
+        checkTypeValue(valueDescriptor.getValueDescriptor().getType(), nullableValue);
         index = cellIndex;
         descriptor = valueDescriptor;
         value = nullableValue;
+    }
+
+    private void checkTypeValue(ValueType type, Object value) {
+        boolean hit = switch (type) {
+            case ASCII -> value instanceof String;
+            case BINARY -> value instanceof byte[];
+            case DECIMAL -> value instanceof Double;
+            case INTEGER -> value instanceof Long;
+            case TIMESTAMP -> value instanceof ZonedDateTime;
+        };
+
+        if (!hit) {
+            throw new IllegalArgumentException(type + " value is not " + value.getClass().getTypeName());
+        }
     }
 
     public int getIndex() {

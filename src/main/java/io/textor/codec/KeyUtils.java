@@ -61,7 +61,6 @@ public class KeyUtils {
         ValueType type = decodeType(expr, state);
         int binarySize = 0, width = 0, precision = 0;
         switch (type) {
-            case ASCII, INTEGER, TIMESTAMP -> state.setCursor(CodecUtils.moveAfter(expr, state.getCursor(), ')'));
             case BINARY -> {
                 try {
                     String params = CodecUtils.consumeSkip(expr, ')', state, CodecUtils::isNumber);
@@ -91,6 +90,7 @@ public class KeyUtils {
                     precision = Integer.parseInt(splits[1]);
                 }
             }
+            case ASCII, INTEGER, TIMESTAMP -> {}
         }
         return new ValueDescriptor(type, width, precision, binarySize);
     }
