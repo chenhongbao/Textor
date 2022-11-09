@@ -7,6 +7,8 @@ public class KeyUtils {
     public static String encodeKey(ColumnDescriptor columnDescriptor) {
         KeyDescriptor key = columnDescriptor.getKeyDescriptor();
         ValueDescriptor value = columnDescriptor.getValueDescriptor();
+        validateKeyDescriptor(key);
+        validateValueDescriptor(value);
         return key.getType().getToken()  + key.getName() + "(" + encodeType(value) + ")";
     }
 
@@ -18,6 +20,37 @@ public class KeyUtils {
         };
     }
 
+    private static void validateKeyDescriptor(KeyDescriptor key) {
+        if (key == null || key.getType() == null) {
+            throw new IllegalArgumentException("Illegal key descriptor.");
+        }
+        validateKeyName(key.getName());
+    }
+
+    private static void validateKeyName(String name) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Illegal key name.");
+        }
+        for (int index = 0; index < name.length(); ++index) {
+            char c = name.charAt(index);
+            if (!isValidKeyCharacter(c)) {
+                throw new IllegalArgumentException("Illegal key name character '" + c + "'.");
+            }
+        }
+    }
+
+    private static void validateValueDescriptor(ValueDescriptor value) {
+        if (value == null || value.getType() == null) {
+            throw new IllegalArgumentException("Illegal value descriptor.");
+        }
+        if (value.getType() == ValueType.BINARY && value.getBinarySize() < 0) {
+            throw new IllegalArgumentException("Illegal binary size: " + value.getBinarySize() + ".");
+        }
+        if (value.getType() == ValueType.DECIMAL && (value.getDecimalWidth() <= 0 || value.getDecimalPrecision() < 0)) {
+            throw new IllegalArgumentException("Illegal decimal parameters: " + value.getDecimalWidth() + ", " + value.getDecimalPrecision() + ".");
+        }
+    }
+
     public static ColumnDescriptor decodeKey(String expr, DecodingState state) {
         KeyDescriptor key = decodeKeyDescriptor(expr, state);
         ValueDescriptor value = decodeValueDescriptor(expr, state);
@@ -26,24 +59,40 @@ public class KeyUtils {
 
     private static ValueDescriptor decodeValueDescriptor(String expr, DecodingState state) {
         ValueType type = decodeType(expr, state);
-        int binarySize = 0, precision = 0, fraction = 0;
+        int binarySize = 0, width = 0, precision = 0;
         switch (type) {
             case ASCII, INTEGER, TIMESTAMP -> state.setCursor(CodecUtils.moveAfter(expr, state.getCursor(), ')'));
-            case BINARY ->
-                    binarySize = Integer.parseInt(CodecUtils.consumeSkip(expr, ')', state, CodecUtils::isNumber));
+            case BINARY -> {
+                try {
+                    String params = CodecUtils.consumeSkip(expr, ')', state, CodecUtils::isNumber);
+                    if (state.getCursor() == -1) {
+                        throw new IllegalArgumentException("Incomplete type parameters'" + params + "'.");
+                    }
+                    binarySize = Integer.parseInt(params);
+                }catch (Exception exception) {
+                    throw new IllegalArgumentException(exception.getMessage(), exception);
+                }
+            }
             case DECIMAL -> {
                 String params = CodecUtils.consumeSkip(expr, ')', state, c -> CodecUtils.isNumber(c) || c == ',');
+                if (state.getCursor() == -1) {
+                    throw new IllegalArgumentException("Incomplete type parameters'" + params + "'.");
+                }
                 String[] splits = params.split(",");
                 if (splits.length == 0 || splits.length > 2) {
                     throw new IllegalArgumentException("Illegal type parameters '" + params + "'.");
                 }
-                precision = Integer.parseInt(splits[0]);
+                try {
+                    width = Integer.parseInt(splits[0]);
+                }catch (Exception exception) {
+                    throw new IllegalArgumentException(exception.getMessage(), exception);
+                }
                 if (splits.length == 2) {
-                    fraction = Integer.parseInt(splits[1]);
+                    precision = Integer.parseInt(splits[1]);
                 }
             }
         }
-        return new ValueDescriptor(type, precision, fraction, binarySize);
+        return new ValueDescriptor(type, width, precision, binarySize);
     }
 
     private static KeyDescriptor decodeKeyDescriptor(String expr, DecodingState state) {
@@ -61,7 +110,15 @@ public class KeyUtils {
     }
 
     private static String decodeColumnName(String expr, DecodingState state) {
-        return CodecUtils.consumeSkip(expr, '(', state, KeyUtils::isValidKeyCharacter);
+        String name = CodecUtils.consumeSkip(expr, '(', state, KeyUtils::isValidKeyCharacter);
+        if (name.isBlank()) {
+            throw new IllegalArgumentException("Blank key name is not allowed.");
+        }
+        char c = name.charAt(0);
+        if (!CodecUtils.isLowerLetter(c) && !CodecUtils.isUpperLetter(c) && c != '_') {
+            throw new IllegalArgumentException("Key name begins with illegal character '" + c + "'.");
+        }
+        return name;
     }
 
     private static ValueType decodeType(String expr, DecodingState state) {

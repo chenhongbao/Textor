@@ -175,7 +175,7 @@ public class ValueUtils {
 
         public static Double decode(String expr, int width, int precision, DecodingState state) {
             CodecUtils.validateOffset(expr, state.getCursor());
-            if (width < 0 || precision < 0) {
+            if (width <= 0 || precision < 0) {
                 throw new IllegalArgumentException("Illegal decimal parameters: " + width + ", " + precision + ".");
             }
             if (width < precision) {

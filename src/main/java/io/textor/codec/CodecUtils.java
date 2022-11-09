@@ -4,6 +4,7 @@ import io.textor.DecodingState;
 
 public class CodecUtils {
     static int moveAfter(String expr, int offset, char token) {
+        // If token is found, cursor is located after the token, otherwise return -1 as indexOf.
         int n = expr.indexOf(token, offset);
         if (n == -1) {
             return -1;
